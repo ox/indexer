@@ -1,0 +1,13 @@
+hash.c -> create a hash table
+list.c -> a linked list
+file_handler -> returns chunked text for files
+util.c -> strtolower, files_in_dir
+indexer.c -> a file indexer
+
+main.c ->
+  get list if files if given a dir
+  get a single file name if given a file
+
+  call indexer on each file, in seperate processes
+  append to index file since it's going to 
+
