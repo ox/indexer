@@ -39,7 +39,7 @@ struct Node * get_files_in_folder(struct Node * head, const char * pathname) {
 
   dp = opendir (pathname);
   if (dp != NULL) {
-    while (ep = readdir (dp)) {
+    while ((ep = readdir (dp))) {
       if (ep->d_type == DT_DIR
           && (strcmp(ep->d_name, ".") != 0)
           && (strcmp(ep->d_name, "..") != 0)) {
@@ -62,3 +62,43 @@ struct Node * get_files_in_folder(struct Node * head, const char * pathname) {
   return head;
 }
 
+/*  func: sort_strings(arr, size)
+ 
+ sort <size> strings in <arr> in lexicongraphical order.
+ */
+void sort_strings(char ** arr, int size) {
+  int i;
+  for(i = 0; i < size; i++) {
+    int lowest = i;
+    
+    int k;
+    for(k = i; k < size; k++)
+      if(strcmp(arr[k], arr[lowest])<0) lowest = k;
+    
+    char * tmp = arr[i];
+    arr[i] = arr[lowest];
+    arr[lowest] = tmp;
+  }
+}
+
+void print_hash_keys_and_values(struct hash_table * table) {
+  char ** arr = hash_table_get_all_keys(table);
+  struct hash_node * head;
+  struct file_node * head_node;
+  int i = 0;
+  
+  sort_strings(arr, table->key_alloc);
+  
+  for(; i < table->key_alloc; i++) {
+    head = hash_table_get(table, arr[i]);
+    printf("%s\n", head->word);
+    
+    for(head_node = head->appears_in; head_node != NULL; head_node = head_node->next) {
+      printf("\t%s\n", head_node->file_name);
+    }
+    
+    printf("\n");
+  }
+  
+  free(arr);
+}

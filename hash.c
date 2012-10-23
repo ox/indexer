@@ -2,258 +2,257 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <assert.h>
+
 #include "hash.h"
 
 #define cmp(a, b) printf("[%s:%s] %i\n", a, b, strcmp(a, b));
 
 /*
-    HASH ELEMENT HELPERS
+ HASH ELEMENT HELPERS
  */
 
-/*  func: new_hash_element(str)
- 
-    a helper function which takes in a string, and returns a pointer to
-    a hash_element struct. SUPER convenient.
- */
-
-hash_element* new_hash_element(char *str) {
-    hash_element *tmp = (hash_element *)malloc(sizeof(hash_element));
-    tmp->str = (char *)malloc(strlen(str) + 1);
-    strcpy(tmp->str, str);
-    tmp->count = 1;
-    return tmp;
+struct file_node * new_file_node(char * file_name) {
+  struct file_node * tmp = malloc(sizeof(struct file_node));
+  
+  tmp->count = 1;
+  tmp->file_name = malloc(strlen(file_name));
+  strcpy(tmp->file_name, file_name);
+  tmp->next = NULL;
+  
+  return tmp;
 }
 
-void free_hash_element(hash_element *element) {
-    free(element->str);
-    free(element);
+struct hash_node * new_hash_node(char * word) {
+  struct hash_node * tmp = malloc(sizeof(struct hash_node));
+  
+  tmp->word = malloc(strlen(word) + 1);
+  strcpy(tmp->word, word);
+  tmp->next = NULL;
+  tmp->appears_in = NULL;
+  
+  return tmp;
+}
+
+void free_file_node(struct file_node * node) {
+  free(node->file_name);
+  free(node);
+}
+
+void free_file_nodes(struct file_node * node) {
+  struct file_node * head = node->next, * next;
+  
+  // free(node->file_name);
+  while(head != NULL) {
+    next = head->next;
+    free_file_node(head);
+    head = next;
+  }
+}
+
+void free_hash_node(struct hash_node * node) {
+  free_file_nodes(node->appears_in);
+  free(node->word);
+  free(node);
+}
+
+void free_hash_nodes(struct hash_node * node) {
+  struct hash_node * head = node->next, * next;
+  
+  //free(node->word);
+  free_file_nodes(node->appears_in);
+  while(head != NULL) {
+    next = head->next;
+    free_hash_node(head);
+    head = next;
+  }
 }
 
 /*  func: hash_element_add_occurance(element, str)
  
-    if str == element->str then it's just another occurance since
-    str is already in the case-sensitive occurances** array. Otherwise
-    an existing copy of str is sought in occurances** and if it's not
-    found, it is added. count of the str is incrimented in all cases.
+ if str == element->str then it's just another occurance since
+ str is already in the case-sensitive occurances** array. Otherwise
+ an existing copy of str is sought in occurances** and if it's not
+ found, it is added. count of the str is incrimented in all cases.
  */
-int hash_element_add_occurance(hash_element *element, char *str) {
-    if(strcmp(element->str, str) == 0) {
-        element->count += 1;
-        return 1;
+int hash_node_add_occurance(struct hash_node * node, char * file_name) {
+  struct file_node * head = node->appears_in;
+  while (head != NULL) {
+    if (strcmp(head->file_name, file_name) == 0) {
+      head->count++;
+      break;
+    } else {
+      head = head->next;
     }
+  }
+  
+  if (head == NULL) {
+    struct file_node * tmp = new_file_node(file_name);
+    tmp->next = node->appears_in;
+    node->appears_in = tmp;
+    
     return 0;
+  } else {
+    return 1;
+  }
+}
+
+struct hash_table * new_hash_table(int size) {
+  struct hash_table * table = malloc(sizeof(struct hash_table));
+  assert(table != NULL);
+  
+  if(!table) {
+    fprintf(stderr, "no memory while allocating hash_table\n");
+    return NULL;
+  }
+  
+  table->size = 0;
+  table->key_num = size;
+  table->key_alloc = 0;
+  table->storage = calloc(table->key_num, sizeof(struct hash_node *));
+  
+  if(table->storage == NULL) {
+    fprintf(stderr, "no memory while allocating table->store\n");
+    free(table);
+    return NULL;
+  }
+  
+  return table;
 }
 
 /*
-    HASH TABLE HELPERS
- */
-
-/*  func: new_hash_table(size)
- 
-    helper function which allocates and initializes a hash_table for
-    future use. Returns a pointer to that hash_table.
- */
-hash_table* new_hash_table(int size) {
-    hash_table *table = (hash_table *)malloc(sizeof(hash_table));
-
-    if(!table) {
-        fprintf(stderr, "no memory while allocating hash_table\n");
-        return NULL;
-    }
-
-    table->size = 0;
-    table->key_num = size;
-    table->key_alloc = 0;
-    table->storage = (node **)calloc(table->key_num, sizeof(node *));
-
-    if(table->storage == NULL) {
-        fprintf(stderr, "no memory while allocating table->store\n");
-        free(table);
-        return NULL;
-    }
-
-    return table;
-}
-
-/*  func: sort_strings(arr, size)
- 
-    sort <size> strings in <arr> in lexicongraphical order.
- */
-void sort_strings(char ** arr, int size) {
-    int i;
-    for(i = 0; i < size; i++) {
-        int lowest = i;
-
-        int k;
-        for(k = i; k < size; k++)
-            if(strcmp(arr[k], arr[lowest])<0) lowest = k;    
-
-        char * tmp = arr[i];
-        arr[i] = arr[lowest];
-        arr[lowest] = tmp;
-    }
-}
-
-/*  func: print_hash_keys_in_lexicongraphical_order(table)
- 
-    print out all of the hash_elements in "alphabetical" order and display
-    their number of occurances, and number of case-sensitive versions;
- */
-void print_hash_keys_in_lexicongraphical_order(hash_table *table){
-    char **arr = hash_table_get_all_keys(table);
-    sort_strings(arr, table->key_alloc);
-    int i = 0, k, num;
-
-    for(; i < table->key_alloc; i++) {
-        hash_element *tmp = hash_table_get(table, arr[i]);
-        printf("%s", tmp->str);
-        num = 6 - strlen(tmp->str) / 4;
-
-        for(k = 0; k < num; k++)
-            printf("\t");
-
-        printf("%i\t%i\n", tmp->count);
-        tmp = NULL;
-    }
-
-    for(i = 0; i < table->key_alloc; i++)
-        free(arr[i]);
-    free(arr);
-}
-
-/* 
-    HASH TABLE 
+ HASH TABLE
  */
 
 /*  func: lua_hash(str)
  
-    function takes in a string and returns a positive int hash.
+ function takes in a string and returns a positive int hash.
  */
 int lua_hash(char *str) {
-    int l = strlen(str);
-    int i, step = ((l >> 5) + 1);
-    int h = l + (l >= 4?*(int*)str:0);
-    for( i=l; i >= step; i -= step) {
-        h = h^(( h<<5 ) + (h >> 2) + ((unsigned char *)str)[i-1]);
-    }
-
-    /* abs(h) is a modification on the original lua hash
-       to make it work better with my method of determining a
-       table index using lua_hash%table->key_num */
-    return abs(h);
+  int l = (int)strlen(str);
+  int i, step = ((l >> 5) + 1);
+  int h = l + (l >= 4?*(int*)str:0);
+  for( i=l; i >= step; i -= step) {
+    h = h^(( h<<5 ) + (h >> 2) + ((unsigned char *)str)[i-1]);
+  }
+  
+  /* abs(h) is a modification on the original lua hash
+   to make it work better with my method of determining a
+   table index using lua_hash%table->key_num */
+  return abs(h);
 }
 
 
 /*  func: hash_table_store(table, str, element)
  
-    function stores an element in the hash_table table under the key str.
-    if there are collisions under the key, it will append the element
-    to the linked list at that location.
+ function stores an element in the hash_table table under the key str.
+ if there are collisions under the key, it will append the element
+ to the linked list at that location.
  
-    /!/ This is a store-by-copy hash table! free() your hash_elements
-        after you store them in the table. 
+ /!/ This is a store-by-copy hash table! free() your hash_elements
+ after you store them in the table.
  
-        Example:
-            hash_table *table = new_hash_table(16);
-            hash_element *tmp = new_hash_element("example");
-            hash_table_store(table, tmp->str, tmp);
-            free(tmp);
-    /!/
+ Example:
+ hash_table *table = new_hash_table(16);
+ hash_element *tmp = new_hash_element("example");
+ hash_table_store(table, tmp->str, tmp);
+ free(tmp);
+ /!/
  */
-void hash_table_store(hash_table* table, char *str, hash_element* val) {
-    if(table->storage[lua_hash(str)%table->key_num] != NULL) {
-        hash_element *tmp = hash_table_get(table, str);
-        tmp->count = val->count;
-        tmp = NULL;
+void hash_table_store(struct hash_table * table, char * word, struct hash_node * node) {
+  if (table->storage[lua_hash(word)%table->key_num] != NULL) {
+    /* replace */
+    struct hash_node * head = hash_table_get(table, word), * prev;
+    
+    if (strcmp(head->word, word) == 0) {
+      table->storage[lua_hash(word)%table->key_num] = node;
+      node->next = head->next;
+      free_hash_node(head);
     } else {
-        int hash = lua_hash(str);
-
-        /* create a new element, copy over the values, and save the copy
-         that way, the original value can be free()'d */
-        hash_element *element = new_hash_element(str);
-        memcpy(element, val, sizeof(hash_element));
-
-        /* create a linked list node, point it to the head of the index */
-        node * head = (node *)malloc(sizeof(node));
-        head->data = element;
-        if(table->storage[hash%table->key_num] != NULL) {
-            head->next = table->storage[hash%table->key_num];
-        } else
-            head->next = NULL;
-
-        table->key_alloc += 1;
-        table->storage[hash%table->key_num] = head;
+      while (head->next != NULL) {
+        if (strcmp(head->word, word) == 0) {
+          prev->next = node;
+          node->next = head->next;
+          free_hash_node(head);
+          break;
+        }
+        
+        prev = head;
+        head = head->next;
+      }
     }
+  } else {
+    /* insert */
+    table->storage[lua_hash(word)%table->key_num] = node;
+  }
 }
 
 
 /*  func: hash_table_get(table, str)
  
-    function takes a hash_table pointer and a string and returns
-    a pointer to the hash_element in the table. It will *always* 
-    return a pointer to the right hash_element, even if there are
-    multiple collisions under the hash of str.
+ function takes a hash_table pointer and a string and returns
+ a pointer to the hash_element in the table. It will *always*
+ return a pointer to the right hash_element, even if there are
+ multiple collisions under the hash of str.
  
-    suitable for modifying hash_elements;
+ suitable for modifying hash_elements;
  */
-hash_element* hash_table_get(hash_table* table, char *str) {
-    int hash = lua_hash(str);
-    if(table->storage[hash%table->key_num] == NULL) {
-        return NULL;
-    } else {
-        /* get the first node*/
-        node *tmp = table->storage[hash%table->key_num];
-        if(!tmp->next) /* if it has no followers, it must be the only node in the list */
-            return table->storage[hash%table->key_num]->data; /* return it */
+struct hash_node * hash_table_get(struct hash_table* table, char * word) {
+  int hash = lua_hash(word);
+  struct hash_node * head;
 
-        /* oh boy, there are more than 1 nodes in this linked list, one of them must be it, since this is a hash index with collisions on str */
-        while((tmp = tmp->next) != NULL)
-            if(strcmp(table->storage[hash%table->key_num]->data->str, str)==0)
-                return table->storage[hash%table->key_num]->data;
-    }
+  if(table->storage[hash%table->key_num] == NULL) {
     return NULL;
+  } else {
+    head = table->storage[hash%table->key_num];
+
+    if(head->next == NULL) {
+      return head;
+    }
+
+    while(head != NULL) {
+      if (strcmp(head->word, word) == 0) {
+        return head;
+      } else {
+        head = head->next;
+      }
+    }
+  }
+  return NULL;
 }
 
 /*  func: hash_table_get_all_keys(table)
  
-    function takes a hash_table pointer and returns an array of
-    hash_element pointers (hash_element **). 
+ function takes a hash_table pointer and returns an array of
+ hash_element pointers (hash_element **).
  */
-char ** hash_table_get_all_keys(hash_table *table) {
-    char ** arr = (char **)malloc(table->key_alloc * sizeof(char *));
-
-    int i, arr_i = -1;
-    for(i = 0; i < table->key_num; i++) {
-        if(table->storage[i]) {
-            node *curr_node = table->storage[i];
-            arr_i += 1;
-            arr[arr_i] = curr_node->data->str;
-            curr_node = curr_node->next;
-
-            while(curr_node != NULL) {
-                arr_i += 1;
-                arr[arr_i] = curr_node->data->str;
-                curr_node = curr_node->next;
-            }
-        }
+char ** hash_table_get_all_keys(struct hash_table *table) {
+  char ** arr = malloc(table->key_alloc * sizeof(char *));
+  struct hash_node * head = NULL;
+  
+  int i = 0, k = 0;
+  for(; i < table->key_num; i++) {
+    if(table->storage[i]) {
+      head = table->storage[i];
+      
+      while (head != NULL) {
+        arr[k] = head->word;
+        k++;
+        head = head->next;
+      }
     }
-
-    return arr;
+  }
+  
+  return arr;
 }
 
-void hash_table_free(hash_table *table) {
-    int i;
-    for(i = 0; i < table->key_num; i++) {
-        if(table->storage[i] != NULL) {
-            node *head = table->storage[i];
-            while(head != NULL) {
-                node *next_node = head->next;
-                free_hash_element(head->data);
-                free(head);
-                head = next_node;
-            }
-        }
+void hash_table_free(struct hash_table *table) {
+  int i = 0;
+  for(; i < table->key_num; i++) {
+    if(table->storage[i] != NULL) {
+      free_hash_nodes(table->storage[i]);
     }
-    free(table->storage);
-    free(table);
+  }
+  free(table->storage);
+  // free(table);
 }
